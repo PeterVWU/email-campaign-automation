@@ -1,0 +1,9 @@
+node_modules
+.next
+.env
+*.tsbuildinfo
+next-env.d.ts
+payload-types.ts
+.omc/
+.playwright-mcp/
+admin-page.png
