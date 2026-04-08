@@ -34,6 +34,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=nextjs:nodejs /app/src ./src
 COPY --from=builder --chown=nextjs:nodejs /app/docker-entrypoint.sh ./docker-entrypoint.sh
 
+RUN mkdir -p /app/media && chown nextjs:nodejs /app/media
+
 USER nextjs
 
 EXPOSE 3000
