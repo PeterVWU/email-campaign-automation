@@ -19,6 +19,12 @@ Copy `.env.example` to `.env` and set:
     app service already sets this via compose env, so `.env` is only
     needed when running `next dev` on the host)
 - `PAYLOAD_SECRET` — random secret; must be stable across restarts
+- `PUBLIC_URL` — public origin used to build absolute URLs for media
+  embedded in outgoing emails (e.g. `https://emails.example.com`).
+  Required in production when running behind a reverse proxy that
+  doesn't forward `X-Forwarded-Host` / `X-Forwarded-Proto`. Without it
+  the app falls back to forwarded headers, then to the request origin
+  (which is the container's bind address, e.g. `http://0.0.0.0:3000`).
 
 ---
 

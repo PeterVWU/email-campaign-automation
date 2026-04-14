@@ -4,6 +4,7 @@ import { selectBanners } from '@/services/bannerSelector'
 import { selectCategories } from '@/services/categorySelector'
 import { selectProducts } from '@/services/productSelector'
 import { buildCampaignEmail } from '@/services/emailBuilder'
+import { resolveBaseUrl, absolutizeMediaUrl } from '@/services/resolveBaseUrl'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -42,15 +43,16 @@ export async function GET(request: Request) {
 
     const subject = (campaignType.titleTemplate as string).replace('{Store}', store.name as string)
 
-    // Build absolute base URL for local media files
-    const baseUrl = new URL(request.url).origin
+    // Build absolute base URL for local media files. Prefer the public URL
+    // forwarded by a reverse proxy; fall back to PUBLIC_URL env, then to the
+    // raw request origin (which can be 0.0.0.0:3000 inside a container).
+    const baseUrl = resolveBaseUrl(request)
     const logoImage = store.logoImage as any
-    const logoUrl = logoImage?.url ? `${baseUrl}${logoImage.url}` : ''
+    const logoUrl = absolutizeMediaUrl(logoImage?.url, baseUrl)
 
-    // Make banner image URLs absolute
     const absoluteBanners = banners.map((b) => ({
       ...b,
-      imageUrl: b.imageUrl.startsWith('/') ? `${baseUrl}${b.imageUrl}` : b.imageUrl,
+      imageUrl: absolutizeMediaUrl(b.imageUrl, baseUrl),
     }))
 
     const html = buildCampaignEmail({

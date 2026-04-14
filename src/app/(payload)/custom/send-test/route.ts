@@ -5,6 +5,7 @@ import { selectCategories } from '@/services/categorySelector'
 import { selectProducts } from '@/services/productSelector'
 import { buildCampaignEmail } from '@/services/emailBuilder'
 import { createAndSendCampaign } from '@/services/klaviyoCampaignSender'
+import { resolveBaseUrl, absolutizeMediaUrl } from '@/services/resolveBaseUrl'
 
 export async function POST(request: Request) {
   try {
@@ -48,14 +49,19 @@ export async function POST(request: Request) {
     const categories = await selectCategories(payload, Number(campaignType.id), Number(store.id))
 
     const subject = (campaignType.titleTemplate as string).replace('{Store}', store.name as string)
+    const baseUrl = resolveBaseUrl(request)
     const logoImage = store.logoImage as any
-    const logoUrl = logoImage?.url ? `${store.storeUrl}${logoImage.url}` : ''
+    const logoUrl = absolutizeMediaUrl(logoImage?.url, baseUrl)
+    const absoluteBanners = banners.map((b) => ({
+      ...b,
+      imageUrl: absolutizeMediaUrl(b.imageUrl, baseUrl),
+    }))
 
     const html = buildCampaignEmail({
       storeName: store.name as string,
       storeUrl: store.storeUrl as string,
       logoUrl,
-      banners,
+      banners: absoluteBanners,
       bodyCopy: extractText(campaignType.bodyCopy),
       productBlock1: productBlocks.block1,
       productBlock2: productBlocks.block2,
