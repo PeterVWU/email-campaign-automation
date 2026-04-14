@@ -5,10 +5,13 @@
   "description": "Email campaign automation with PayloadCMS",
   "scripts": {
     "dev": "next dev",
+    "dev:db": "docker compose up -d postgres",
     "build": "next build",
     "start": "next start",
     "generate:types": "payload generate:types",
-    "generate:importmap": "payload generate:importmap"
+    "generate:importmap": "payload generate:importmap",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +31,7 @@
     "@types/node": "^25.5.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
   }
 }

@@ -18,6 +18,17 @@ const dirname = path.dirname(filename)
 
 export default buildConfig({
   editor: lexicalEditor(),
+  admin: {
+    components: {
+      views: {
+        campaignTester: {
+          path: '/campaign-tester',
+          Component: '@/components/admin/CampaignTesterView#CampaignTesterView',
+        },
+      },
+      afterNavLinks: ['@/components/admin/CampaignTesterNavLink#CampaignTesterNavLink'],
+    },
+  },
   collections: [
     Media,
     Stores,

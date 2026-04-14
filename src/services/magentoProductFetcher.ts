@@ -9,6 +9,7 @@ interface MagentoProduct {
   sku: string
   name: string
   price: number
+  type_id: string
   created_at: string
   media_gallery_entries?: Array<{
     file: string
@@ -34,6 +35,11 @@ interface MagentoOrder {
   items: Array<{
     items: MagentoOrderItem[]
   }>
+}
+
+interface ParentInfo {
+  urlKey: string | null
+  imageUrl: string | null
 }
 
 function buildSearchCriteriaParams(params: {
@@ -103,26 +109,119 @@ function getProductImageUrl(product: MagentoProduct, storeUrl: string): string {
   if (imageEntry) {
     return `${storeUrl}/media/catalog/product${imageEntry.file}`
   }
-  return `${storeUrl}/media/catalog/product/placeholder/default/no-image.jpg`
+  return ''
+}
+
+function hasValidImage(product: MagentoProduct): boolean {
+  return !!product.media_gallery_entries?.some((entry) => entry.types.includes('image'))
 }
 
 function getCustomAttribute(product: MagentoProduct, code: string): string | undefined {
   return product.custom_attributes?.find((attr) => attr.attribute_code === code)?.value
 }
 
-function toStandardProduct(product: MagentoProduct, storeUrl: string): StandardProduct {
-  const specialPrice = getCustomAttribute(product, 'special_price')
-  const urlKey = getCustomAttribute(product, 'url_key')
-
-  return {
-    sku: product.sku,
-    name: product.name,
-    imageUrl: getProductImageUrl(product, storeUrl),
-    price: product.price,
-    salePrice: specialPrice ? parseFloat(specialPrice) : null,
-    productUrl: `${storeUrl}/${urlKey || encodeURIComponent(product.sku)}.html`,
-  }
+export function getParentProductName(variantName: string): string {
+  const dashIndex = variantName.indexOf('-')
+  if (dashIndex === -1) return variantName.trim()
+  return variantName.substring(0, dashIndex).trim()
 }
+
+async function resolveParent(
+  credentials: MagentoCredentials,
+  parentName: string,
+  storeUrl: string,
+  cache: Map<string, ParentInfo | null>,
+): Promise<ParentInfo | null> {
+  if (cache.has(parentName)) return cache.get(parentName)!
+
+  const params = buildSearchCriteriaParams({
+    filters: [
+      { field: 'name', value: parentName, conditionType: 'eq' },
+      { field: 'type_id', value: 'configurable', conditionType: 'eq' },
+    ],
+    pageSize: 1,
+  })
+
+  try {
+    const data = await magentoRequest<MagentoProductResponse>(
+      credentials,
+      '/rest/V1/products',
+      params,
+    )
+
+    if (data.items.length > 0) {
+      const parent = data.items[0]
+      const info: ParentInfo = {
+        urlKey: getCustomAttribute(parent, 'url_key') || null,
+        imageUrl: getProductImageUrl(parent, storeUrl),
+      }
+      cache.set(parentName, info)
+      return info
+    }
+  } catch {
+    // Ignore lookup failures — fall back to variant data
+  }
+
+  cache.set(parentName, null)
+  return null
+}
+
+async function resolveProducts(
+  credentials: MagentoCredentials,
+  products: MagentoProduct[],
+  storeUrl: string,
+): Promise<StandardProduct[]> {
+  const baseUrl = storeUrl.replace(/\/+$/, '')
+  const parentCache = new Map<string, ParentInfo | null>()
+  const placeholderUrl = `${baseUrl}/media/catalog/product/placeholder/default/no-image.jpg`
+
+  const results: StandardProduct[] = []
+
+  for (const product of products) {
+    const specialPrice = getCustomAttribute(product, 'special_price')
+    const variantUrlKey = getCustomAttribute(product, 'url_key')
+    let productUrl: string
+    let imageUrl = getProductImageUrl(product, baseUrl)
+
+    if (product.type_id === 'configurable') {
+      productUrl = `${baseUrl}/${variantUrlKey || encodeURIComponent(product.sku)}`
+    } else {
+      // Simple product — resolve parent for URL and fallback image
+      const parentName = getParentProductName(product.name)
+      const parentInfo = await resolveParent(credentials, parentName, baseUrl, parentCache)
+
+      if (parentInfo?.urlKey) {
+        productUrl = `${baseUrl}/${parentInfo.urlKey}`
+      } else {
+        productUrl = `${baseUrl}/${variantUrlKey || encodeURIComponent(product.sku)}`
+      }
+
+      // If variant has no image, use parent's image
+      if (!imageUrl && parentInfo?.imageUrl) {
+        imageUrl = parentInfo.imageUrl
+      }
+    }
+
+    // Final fallback to placeholder
+    if (!imageUrl) {
+      imageUrl = placeholderUrl
+    }
+
+    results.push({
+      sku: product.sku,
+      name: product.name,
+      imageUrl,
+      price: product.price,
+      salePrice: specialPrice ? parseFloat(specialPrice) : null,
+      productUrl,
+    })
+  }
+
+  return results
+}
+
+// Note: Stock filtering is handled by Magento's visibility settings.
+// Products with visibility=4 (catalog+search) are typically in-stock.
 
 async function fetchNewArrivals(
   credentials: MagentoCredentials,
@@ -144,7 +243,7 @@ async function fetchNewArrivals(
     params,
   )
 
-  return data.items.map((product) => toStandardProduct(product, storeUrl))
+  return resolveProducts(credentials, data.items, storeUrl)
 }
 
 async function fetchByCategory(
@@ -168,7 +267,7 @@ async function fetchByCategory(
     params,
   )
 
-  return data.items.map((product) => toStandardProduct(product, storeUrl))
+  return resolveProducts(credentials, data.items, storeUrl)
 }
 
 async function fetchClearance(
@@ -192,7 +291,7 @@ async function fetchClearance(
     params,
   )
 
-  return data.items.map((product) => toStandardProduct(product, storeUrl))
+  return resolveProducts(credentials, data.items, storeUrl)
 }
 
 async function fetchStaffPicks(
@@ -214,7 +313,7 @@ async function fetchStaffPicks(
     params,
   )
 
-  return data.items.map((product) => toStandardProduct(product, storeUrl))
+  return resolveProducts(credentials, data.items, storeUrl)
 }
 
 async function fetchTopSellers(
@@ -222,7 +321,6 @@ async function fetchTopSellers(
   storeUrl: string,
   limit: number,
 ): Promise<StandardProduct[]> {
-  // Fetch recent completed orders to aggregate best sellers
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
   const dateStr = thirtyDaysAgo.toISOString().split('T')[0]
@@ -241,7 +339,6 @@ async function fetchTopSellers(
     orderParams,
   )
 
-  // Aggregate SKU quantities
   const skuQuantities = new Map<string, number>()
   for (const order of orderData.items) {
     for (const item of order.items) {
@@ -250,7 +347,6 @@ async function fetchTopSellers(
     }
   }
 
-  // Sort by quantity and take top SKUs
   const topSkus = Array.from(skuQuantities.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
@@ -260,7 +356,6 @@ async function fetchTopSellers(
     return []
   }
 
-  // Fetch full product data for top SKUs
   return fetchStaffPicks(credentials, storeUrl, topSkus)
 }
 
