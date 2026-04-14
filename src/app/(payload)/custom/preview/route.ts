@@ -36,9 +36,9 @@ export async function GET(request: Request) {
       return Response.json({ error: 'Store or Campaign Type not found' }, { status: 404 })
     }
 
-    const banners = await selectBanners(payload, campaignType.id, store.id)
-    const productBlocks = await selectProducts(payload, campaignType.id, store.id)
-    const categories = await selectCategories(payload, campaignType.id, store.id)
+    const banners = await selectBanners(payload, Number(campaignType.id), Number(store.id))
+    const productBlocks = await selectProducts(payload, Number(campaignType.id), Number(store.id))
+    const categories = await selectCategories(payload, Number(campaignType.id), Number(store.id))
 
     const subject = (campaignType.titleTemplate as string).replace('{Store}', store.name as string)
 
