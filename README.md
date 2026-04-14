@@ -25,7 +25,7 @@ Copy `.env.example` to `.env` and set:
 ## Production
 
 The base `docker-compose.yml` is prod-safe: postgres is only reachable
-inside the docker network, and the app is published on host port 3003.
+inside the docker network, and the app is published on host port 3004.
 
 ```bash
 git pull
@@ -34,7 +34,7 @@ docker compose up -d
 docker compose logs -f app   # optional: watch logs
 ```
 
-Open `http://<host>:3003/admin`.
+Open `http://<host>:3004/admin`.
 
 To update after a git pull:
 
@@ -81,7 +81,7 @@ code changes require a rebuild.
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
-- App: `http://localhost:3000/admin` (dev override) or `:3003` (prod mapping — both are bound).
+- App: `http://localhost:3000/admin` (dev override) or `:3004` (prod mapping — both are bound).
 - Postgres: `localhost:5433`.
 
 ### Stopping

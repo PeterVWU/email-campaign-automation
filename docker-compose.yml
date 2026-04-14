@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "3003:3000"
+      - "3004:3000"
     environment:
       DATABASE_URL: postgresql://payload:payload@postgres:5432/payload
       PAYLOAD_SECRET: ${PAYLOAD_SECRET:-change-me-in-production}
